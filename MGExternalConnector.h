@@ -22,6 +22,7 @@ public slots:
     void getUrl(const GetUrlCallback &callback);
     void setUrl(const QString &url);
     void onUrlChanged(const QString &url);
+    void onUrlEntered(const QString &url);
 
 protected:
     void startMethod() override;

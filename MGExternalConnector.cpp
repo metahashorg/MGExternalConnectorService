@@ -5,6 +5,7 @@
 #include "check.h"
 #include "Log.h"
 
+#include <QRegularExpression>
 #include <QDebug>
 #include <QUrl>
 #include <QThread>
@@ -67,16 +68,38 @@ void MGExternalConnector::onUrlChanged(const QString& url)
     }
 }
 
+void MGExternalConnector::onUrlEntered(const QString &url)
+{
+    LOG << "Url entered " << url;
+    qDebug() << "!";
+    QUrl purl(url);
+    if (purl.host() != QLatin1String("example.com"))
+        return;
+
+    QString query = purl.query();
+    const QRegularExpression regexp(QStringLiteral("q=(\\d+)"));
+    QRegularExpressionMatch match = regexp.match(query);
+    if (match.hasMatch()) {
+        const int num = match.captured(1).toInt() + 1;
+        query.replace(regexp, QString("q=%1").arg(num));
+    }
+    purl.setQuery(query);
+    qDebug() << purl.toString();
+    setUrl(purl.toString());
+}
+
 void MGExternalConnector::startMethod()
 {
 }
 
 void MGExternalConnector::timerMethod()
 {
-    getUrl([this](const QString &url){
+    /* example on timer
+     * getUrl([this](const QString &url){
         qDebug() << "Get URL:" << url;
         setUrl(url + "...a");
     });
+    */
 }
 
 void MGExternalConnector::finishMethod()

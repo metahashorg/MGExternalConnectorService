@@ -23,6 +23,7 @@ SET_LOG_NAMESPACE("EXTCONN");
 namespace
 {
 const QString UrlChangedMethod = QLatin1String("UrlChanged");
+const QString UrlEnteredMethod = QLatin1String("UrlEntered");
 const QString GetUrlMethod = QLatin1String("GetUrl");
 const QString SetUrlMethod = QLatin1String("SetUrl");
 
@@ -114,7 +115,24 @@ QString parseUrlChangedRequest(const QJsonDocument& request)
     return root.value("url").toString();
 }
 
+QString parseUrlEnteredRequest(const QJsonDocument& request)
+{
+    CHECK(request.isObject(), "Request field not found");
+    const QJsonObject root = request.object();
+    CHECK(
+        root.contains("url") && root.value("url").isString(),
+        "'url' field not found");
+    return root.value("url").toString();
+}
+
 QByteArray makeUrlChangedResponse()
+{
+    QJsonObject json;
+    json.insert(QStringLiteral("result"), QStringLiteral("OK"));
+    return QJsonDocument(json).toJson(QJsonDocument::Compact);
+}
+
+QByteArray makeUrlEnteredResponse()
 {
     QJsonObject json;
     json.insert(QStringLiteral("result"), QStringLiteral("OK"));
@@ -148,8 +166,6 @@ ServiceControl::ServiceControl(QObject* parent) :
 
     Q_REG(ServiceControl::GetUrlCallback, "ServiceControl::GetUrlCallback");
     Q_REG(ServiceControl::SetUrlCallback, "ServiceControl::SetUrlCallback");
-    qDebug() <<  QThread::currentThread();
-
 }
 
 ServiceControl::~ServiceControl()
@@ -158,21 +174,17 @@ ServiceControl::~ServiceControl()
 
 void ServiceControl::getUrl(const GetUrlCallback& callback)
 {
-    qDebug() <<  QThread::currentThread();
-
     localClient->sendRequest(
         makeGetUrlRequest(),
         [callback](const localconnection::LocalClient::Response& response) {
             BEGIN_SLOT_WRAPPER
-            qDebug() << "ok";
             const GetUrlResponse result = parseGetUrlResponse(response.response);
             callback.emitCallback(result.error, result.url);
             END_SLOT_WRAPPER
         });
 }
 
-void ServiceControl::setUrl(
-    const QString& url, const SetUrlCallback& callback)
+void ServiceControl::setUrl(const QString& url, const SetUrlCallback& callback)
 {
     qDebug() << "setUrl";
     localClient->sendRequest(
@@ -180,15 +192,8 @@ void ServiceControl::setUrl(
         [callback](const localconnection::LocalClient::Response& response) {
             BEGIN_SLOT_WRAPPER
             qDebug() << "ok";
-            QString status;
-            /*const TypedException exception = apiVrapper2([&] {
-                const GetUrlResponse result =
-            parseGetUrlResponse(response.response);
-                //CHECK_TYPED(!result,
-            TypeErrors::EXTERCTORCONNECTOR_URLCHANGED_ERROR, "UrlChanged
-            error");
-            });*/
-            callback.emitCallback(true);
+            bool res = parseSetUrlResponse(response.response);
+            callback.emitCallback(res);
             END_SLOT_WRAPPER
         });
 }
@@ -199,13 +204,20 @@ void ServiceControl::onRequest(
     qDebug() << request->request();
     const QJsonDocument reqJson = QJsonDocument::fromJson(request->request());
     const QString method = parseMethodAtRequest(reqJson);
-    if (method == QStringLiteral("UrlChanged"))
-    {
+    if (method == UrlChangedMethod) {
         const QString url = parseUrlChangedRequest(reqJson);
         request->response(makeUrlChangedResponse());
         QMetaObject::invokeMethod(
             connector,
             "onUrlChanged",
+            Qt::QueuedConnection,
+            Q_ARG(QString, url));
+    } else if (method == UrlEnteredMethod) {
+        const QString url = parseUrlEnteredRequest(reqJson);
+        request->response(makeUrlEnteredResponse());
+        QMetaObject::invokeMethod(
+            connector,
+            "onUrlEntered",
             Qt::QueuedConnection,
             Q_ARG(QString, url));
     }

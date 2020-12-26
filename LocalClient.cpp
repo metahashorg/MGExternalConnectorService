@@ -58,7 +58,6 @@ void LocalClient::sendRequest(
 template <typename... Message>
 void LocalClient::runCallback(size_t id, Message&&... messages)
 {
-    qDebug() << "!";
     const auto foundCallback = callbacks.find(id);
     CHECK(
         foundCallback != callbacks.end(),
